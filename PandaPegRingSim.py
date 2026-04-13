@@ -105,8 +105,8 @@ while (t := panda.simulationTime()) < 20:
     stato = fsm.current_state()
     if stato == "Pick":
         # 1. Apri il gripper
-        sim.setJointTargetPosition(finger1, 0.02)
-        sim.setJointTargetPosition(finger2, 0.02)
+        sim.setJointTargetPosition(finger1, 0.04)
+        sim.setJointTargetPosition(finger2, 0.04)
 
         # 2. Muovi il target verso l'anello rosso (qui useresti il lerp nel tempo)
         sim.setObjectPosition(target ,  position_red_ring ,sim.handle_world)
