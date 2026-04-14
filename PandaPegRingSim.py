@@ -47,14 +47,16 @@ class PickAndPlaceFSM:
 
 
 
-def lerp_3d(start, end, alpha):
-    alpha = max(0.0, min(1.0, alpha))  # Clamp alpha to [0, 1]  
-    # alpha = 1 
-    return[
-        start[0]+alpha*(end[0]-start[0]),
-        start[1]+alpha*(end[1]-start[1]),
-        start[2]+alpha*(end[2]-start[2])
-    ] 
+def lerp_3d(start: tuple[float, float, float], end: tuple[float, float, float], alpha: float) -> list[float]:
+    """
+    Esegue un'interpolazione lineare tra due punti 3D.
+    """
+    alpha = max(0.0, min(1.0, alpha))  # Clamp alpha to [0, 1]
+    return [
+        start[0] + alpha * (end[0] - start[0]),
+        start[1] + alpha * (end[1] - start[1]),
+        start[2] + alpha * (end[2] - start[2])
+    ]
 
 
 
@@ -99,7 +101,7 @@ position_yellow_peg[2] += 0.1
 
 
 start_time = 0.0
-duration = 50.0
+duration = 30.0
 end_time = start_time + duration
 
 
@@ -108,41 +110,53 @@ panda.startSimulation()
 alpha = 1 
 fsm.on_event("approach")  # Start the FSM
 
-panda.startSimulation()
-
-new_red = position_red_ring
-new_red[2] += 0.1
+# Crea una copia indipendente delle coordinate!
+new_red = list(position_red_ring)
+new_red[2] += 0.2  # Altezza di approccio (20cm sopra l'anello, più sicuro per l'IK)
 new_red[1] += 0.05
 
-while (t := panda.simulationTime()) < 50:
+start_pose = sim.getObjectPose(target, sim.handle_world)
+start_pos = start_pose[0:3]       # Estraiamo solo X, Y, Z
+start_orient = start_pose[3:7]
+
+# --- AGGIUNGI QUESTA RIGA ---
+print(f"\nCoordinate target anello rosso: X={new_red[0]:.3f}, Y={new_red[1]:.3f}, Z={new_red[2]:.3f}")
+# ---------------------------
+
+fsm = PickAndPlaceFSM()
+fsm.on_event("approach")  # Start the FSM
+
+# Avvia la simulazione una sola volta
+panda.startSimulation()
+
+# Salva il target position iniziale per l'interpolazione
+start_pos = sim.getObjectPosition(target, sim.handle_world)
+
+while (t := panda.simulationTime()) < 30:
     stato = fsm.current_state()
-    alpha = (t - start_time) / duration  # Calculate alpha based on elapsed time
+    alpha = (t - start_time) / duration
     print(f"Current FSM State: {stato} at time {t:.2f}s")
     
     if stato == "Approach":
         # 1. Apri il gripper
         sim.setJointTargetPosition(finger1, 0.04)
         sim.setJointTargetPosition(finger2, 0.04)
-
-        # 2. Muovi il target verso l'anello rosso (qui useresti il lerp nel tempo)
         
+        # 2. Usa l'interpolazione lineare (lerp) per muovere il target FLUIDAMENTE
+        mov_alpha = min(1.0, (t - start_time) / 3.0) 
+        current_position = lerp_3d(start_pos, new_red, 30)
+        current_pose = current_position + start_orient
+        sim.setObjectPose(target, current_pose, sim.handle_world)
         
-        print("New target position for approach:", new_red)
-        nnew_red = lerp_3d(new_red, position_red_ring, alpha)
-        sim.setObjectPosition(target, nnew_red , sim.handle_world)
-        fsm.on_event("reached")  # Transition to Pick state
+        # Se siamo arrivati a destinazione, cambia stato
+        if mov_alpha >= 1.0:
+            fsm.on_event("reached")
+            
+    elif stato == "Pick":
+        # Qui potrai implementare la discesa verso l'anello
+        pass
 
-    if stato == "Pick":
-            print("stato")
-            # red = lerp_3d(new_red, position_red_ring, alpha)
-            # sim.setObjectPosition(target, red , sim.handle_world)
-            sim.setJointTargetPosition(finger1, 0.0)
-            sim.setJointTargetPosition(finger2, 0.0)
-
-    
-    panda.stepSimulation()         
-               
-    
+    # Chiama lo step UNA sola volta per ciclo
     panda.stepSimulation()
 
 panda.stopSimulation()
