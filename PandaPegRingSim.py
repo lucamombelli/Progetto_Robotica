@@ -51,7 +51,7 @@ def lerp_3d(start: tuple[float, float, float], end: tuple[float, float, float], 
     """
     Esegue un'interpolazione lineare tra due punti 3D.
     """
-    alpha = max(0.0, min(1.0, alpha))  # Clamp alpha to [0, 1]
+    alpha = max(0.0, min(1.0, alpha))
     return [
         start[0] + alpha * (end[0] - start[0]),
         start[1] + alpha * (end[1] - start[1]),
@@ -69,13 +69,13 @@ panda = PandaRobot(client, "Franka")
 red_ring = sim.getObject(':/Red_ring')
 yellow_ring = sim.getObject(':/Yellow_ring')
 blue_ring = sim.getObject(':/Blue_ring')
-#green_ring= sim.getObject(':/Green_Ring')
+
 # Peg Handle
 red_peg = sim.getObject(':/base_peg/Red_peg')
 yellow_peg = sim.getObject(':/Yellow_peg')
 blue_peg = sim.getObject(':/Blue_peg')
-#green_peg = sim.getObject(':/Green_peg')
 target = sim.getObject(':/Franka/Target')
+
 # 1. Recupera gli handle dei giunti delle dita prima del ciclo while
 finger1 = sim.getObject(':/panda_finger_joint1')
 finger2 = sim.getObject(':/panda_finger_joint2')
@@ -85,85 +85,118 @@ target_position = sim.getObjectPosition(target, sim.handle_world)
 position_red_ring = sim.getObjectPosition(red_ring, sim.handle_world)
 position_yellow_ring = sim.getObjectPosition(yellow_ring, sim.handle_world)
 position_blue_ring = sim.getObjectPosition(blue_ring, sim.handle_world)
-#position_green_ring = sim.getObjectPosition(green_ring, sim.handle_world)
+
 
 position_red_peg = sim.getObjectPosition(red_peg, sim.handle_world)
 position_yellow_peg = sim.getObjectPosition(yellow_peg, sim.handle_world)
 position_blue_peg = sim.getObjectPosition(blue_peg, sim.handle_world)
-#position_green_peg = sim.getObjectPosition(green_peg, sim.handle_world)
+
 
 
 #Adjust the height of the peg
 position_red_peg[2] += 0.1
 position_blue_peg[2] += 0.1
 position_yellow_peg[2] += 0.1
-#position_green_peg[2] += 0.1
+
 
 
 start_time = 0.0
-duration = 30.0
+duration = 50.0
 end_time = start_time + duration
 
 
 fsm = PickAndPlaceFSM()
+fsm.on_event("approach")
+
 panda.startSimulation()
-alpha = 1 
-fsm.on_event("approach")  # Start the FSM
 
-# Crea una copia indipendente delle coordinate!
-new_red = list(position_red_ring)
-new_red[2] += 0.2  # Altezza di approccio (20cm sopra l'anello, più sicuro per l'IK)
-new_red[1] += 0.05
-
+# Salva le posizioni e gli orientamenti di partenza
 start_pose = sim.getObjectPose(target, sim.handle_world)
-start_pos = start_pose[0:3]       # Estraiamo solo X, Y, Z
+start_pos = start_pose[0:3]       
 start_orient = start_pose[3:7]
 
-# --- AGGIUNGI QUESTA RIGA ---
-print(f"\nCoordinate target anello rosso: X={new_red[0]:.3f}, Y={new_red[1]:.3f}, Z={new_red[2]:.3f}")
-# ---------------------------
+# Variabile per tracciare l'inizio di ogni singolo movimento
+state_start_time = panda.simulationTime()
 
-fsm = PickAndPlaceFSM()
-fsm.on_event("approach")  # Start the FSM
+# Sta sopra di 20 cm dal'anello
+new_red = list(position_red_ring)
+new_red[2] += 0.2  
 
-# Avvia la simulazione una sola volta
-panda.startSimulation()
+pick_target = list(position_red_ring)
+# pick_target[2] += 0.003 # Scende fino al livello dell'anello
+pick_target[1] += 0.05  # Si sposta sul raggio dell'anello
 
-while (t := panda.simulationTime()) < 30:
+place_target = list(position_red_peg)
+place_target[2] += 0.005 # Scende fino al livello dell'anello
+place_target[1] += 0.1  # Si sposta sul raggio dell'anello
+
+print(f"\nCoordinate target Approach: {new_red}")
+print(f"Coordinate target Pick: {pick_target}")
+print(f"Coordinate target Place: {place_target}")
+
+
+# Variabile d'appoggio per salvare la posizione in aria prima di scendere
+pos_prima_di_scendere = [0, 0, 0]
+
+while (t := panda.simulationTime()) < 50:
     stato = fsm.current_state()
-    alpha = (t - start_time) / duration
-    print(f"Current FSM State: {stato} at time {t:.2f}s")
     
     if stato == "Approach":
-        # 1. Apri il gripper
         sim.setJointTargetPosition(finger1, 0.04)
         sim.setJointTargetPosition(finger2, 0.04)
         
-        # 2. Usa l'interpolazione lineare (lerp) per muovere il target FLUIDAMENTE
-        mov_alpha = min(1.0, (t - start_time) / 3.0) 
+        # Calcola il tempo passato SOLO in questo stato (es. 3 secondi totali)
+        mov_alpha = min(1.0, (t - state_start_time) / 3.0) 
         current_position = lerp_3d(start_pos, new_red, mov_alpha)
+        
         current_pose = current_position + start_orient
         sim.setObjectPose(target, current_pose, sim.handle_world)
         
-        # Se siamo arrivati a destinazione, cambia stato
         if mov_alpha >= 1.0:
             fsm.on_event("reached")
+            # --- RESET DEI TEMPI PER LO STATO SUCCESSIVO ---
+            state_start_time = t 
+            # pos_prima_di_scendere = current_position # Salviamo il punto fisso da cui scendere
             
     elif stato == "Pick":
-        # Qui potrai implementare la discesa verso l'anello
-        mov_alpha = min(1.0, (t - start_time) / 5.0) 
-        current_position = lerp_3d(current_position, [position_red_ring[0], position_red_ring[1],position_red_ring[2] + 0.005], mov_alpha)
+        # Discesa più rapida: 2 secondi
+        mov_alpha = min(1.0, (t - state_start_time) / 2.0) 
+        
+        # Usiamo il punto fisso in aria come partenza, e il ring come arrivo
+        current_position = lerp_3d(current_position, pick_target, mov_alpha)
+        
         current_pose = current_position + start_orient
         sim.setObjectPose(target, current_pose, sim.handle_world)
 
-        sim.setJointTargetPosition(finger1, 0.0)
-        sim.setJointTargetPosition(finger2, 0.0)
+        # CHIUDE LA PINZA SOLO QUANDO SEI ARRIVATO IN FONDO
+        if mov_alpha >= 1.0:
+            sim.setJointForce(finger1, 1000)
+            sim.setJointForce(finger2, 1000)           
+
+            sim.setJointTargetPosition(finger1, 0.0)
+            sim.setJointTargetPosition(finger2, 0.0)
+            
+            fsm.on_event("picked")
+            # Prepara il reset per lo stato "Move"
+            state_start_time = t
+    
+    elif stato == "Move":
+        mov_alpha = min(1.0, (t - state_start_time) / 10.0) 
+
+        # Usiamo il punto fisso in aria come partenza, e il ring come arrivo
+        current_position = lerp_3d(current_position, place_target, 0.009)
+        
+        current_pose = current_position + start_orient
+        sim.setObjectPose(target, current_pose, sim.handle_world)
 
         if mov_alpha >= 1.0:
-            fsm.on_event("picked")    
+            sim.setJointTargetPosition(finger1, 0.04)
+            sim.setJointTargetPosition(finger2, 0.04)
+            
+            fsm.on_event("arrived")
+            # Prepara il reset per lo stato "Move"
+            state_start_time = t
 
-
-    # Chiama lo step UNA sola volta per ciclo
     panda.stepSimulation()
 
 panda.stopSimulation()
