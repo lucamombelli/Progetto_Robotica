@@ -129,9 +129,6 @@ fsm.on_event("approach")  # Start the FSM
 # Avvia la simulazione una sola volta
 panda.startSimulation()
 
-# Salva il target position iniziale per l'interpolazione
-start_pos = sim.getObjectPosition(target, sim.handle_world)
-
 while (t := panda.simulationTime()) < 30:
     stato = fsm.current_state()
     alpha = (t - start_time) / duration
@@ -144,7 +141,7 @@ while (t := panda.simulationTime()) < 30:
         
         # 2. Usa l'interpolazione lineare (lerp) per muovere il target FLUIDAMENTE
         mov_alpha = min(1.0, (t - start_time) / 3.0) 
-        current_position = lerp_3d(start_pos, new_red, 30)
+        current_position = lerp_3d(start_pos, new_red, mov_alpha)
         current_pose = current_position + start_orient
         sim.setObjectPose(target, current_pose, sim.handle_world)
         
@@ -154,7 +151,17 @@ while (t := panda.simulationTime()) < 30:
             
     elif stato == "Pick":
         # Qui potrai implementare la discesa verso l'anello
-        pass
+        mov_alpha = min(1.0, (t - start_time) / 5.0) 
+        current_position = lerp_3d(current_position, [position_red_ring[0], position_red_ring[1],position_red_ring[2] + 0.005], mov_alpha)
+        current_pose = current_position + start_orient
+        sim.setObjectPose(target, current_pose, sim.handle_world)
+
+        sim.setJointTargetPosition(finger1, 0.0)
+        sim.setJointTargetPosition(finger2, 0.0)
+
+        if mov_alpha >= 1.0:
+            fsm.on_event("picked")    
+
 
     # Chiama lo step UNA sola volta per ciclo
     panda.stepSimulation()
