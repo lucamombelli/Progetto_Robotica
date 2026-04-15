@@ -65,10 +65,16 @@ sim = client.require('sim')
 simIK = client.require('simIK')
 panda = PandaRobot(client, "Franka")
 
-#Ring handles
+#Ring and Torus handles
+#Red Group
 red_ring = sim.getObject(':/Red_ring')
+red_torus = sim.getObject(':/Red_ring/Torus1')
+#Yellow Group
 yellow_ring = sim.getObject(':/Yellow_ring')
+yellow_torus = sim.getObject(':/Yellow_ring/Torus1')
+#Blue Group
 blue_ring = sim.getObject(':/Blue_ring')
+blue_torus = sim.getObject(':/Blue_ring/Torus2')
 
 # Peg Handle
 red_peg = sim.getObject(':/base_peg/Red_peg')
@@ -79,13 +85,14 @@ target = sim.getObject(':/Franka/Target')
 # 1. Recupera gli handle dei giunti delle dita prima del ciclo while
 finger1 = sim.getObject(':/panda_finger_joint1')
 finger2 = sim.getObject(':/panda_finger_joint2')
+hand = sim.getObject(':/Franka/panda_hand_visual')
+#red_cilinder = sim.getObject(':/Cylinder')
 
-
+#Get the Position for every object of interest
 target_position = sim.getObjectPosition(target, sim.handle_world)
 position_red_ring = sim.getObjectPosition(red_ring, sim.handle_world)
 position_yellow_ring = sim.getObjectPosition(yellow_ring, sim.handle_world)
 position_blue_ring = sim.getObjectPosition(blue_ring, sim.handle_world)
-
 
 position_red_peg = sim.getObjectPosition(red_peg, sim.handle_world)
 position_yellow_peg = sim.getObjectPosition(yellow_peg, sim.handle_world)
@@ -97,8 +104,6 @@ position_blue_peg = sim.getObjectPosition(blue_peg, sim.handle_world)
 position_red_peg[2] += 0.1
 position_blue_peg[2] += 0.1
 position_yellow_peg[2] += 0.1
-
-
 
 start_time = 0.0
 duration = 50.0
@@ -123,12 +128,13 @@ new_red = list(position_red_ring)
 new_red[2] += 0.2  
 
 pick_target = list(position_red_ring)
-# pick_target[2] += 0.003 # Scende fino al livello dell'anello
-pick_target[1] += 0.05  # Si sposta sul raggio dell'anello
+pick_target[2] += 0 # Scende fino al livello dell'anello
+pick_target[1] += 0.04  # Si sposta sul raggio dell'anello
 
 place_target = list(position_red_peg)
 place_target[2] += 0.005 # Scende fino al livello dell'anello
-place_target[1] += 0.1  # Si sposta sul raggio dell'anello
+place_target[1] -= 0.02  # Si sposta sul raggio dell'anello
+place_target[0] -= 0.07
 
 print(f"\nCoordinate target Approach: {new_red}")
 print(f"Coordinate target Pick: {pick_target}")
@@ -170,11 +176,12 @@ while (t := panda.simulationTime()) < 50:
 
         # CHIUDE LA PINZA SOLO QUANDO SEI ARRIVATO IN FONDO
         if mov_alpha >= 1.0:
-            sim.setJointForce(finger1, 1000)
-            sim.setJointForce(finger2, 1000)           
-
-            sim.setJointTargetPosition(finger1, 0.0)
-            sim.setJointTargetPosition(finger2, 0.0)
+            #sim.setJointTargetForce(finger1, 1000.0)
+            #sim.setJointTargetForce(finger2, 1000.0)           
+            sim.setObjectParent(red_torus , hand  , 0)
+            sim.setObjectParent(red_ring , red_torus  , 0)
+            sim.setJointTargetPosition(finger1, 0.00)
+            sim.setJointTargetPosition(finger2, 0.02)
             
             fsm.on_event("picked")
             # Prepara il reset per lo stato "Move"
@@ -192,7 +199,10 @@ while (t := panda.simulationTime()) < 50:
         if mov_alpha >= 1.0:
             sim.setJointTargetPosition(finger1, 0.04)
             sim.setJointTargetPosition(finger2, 0.04)
-            
+            sim.setObjectParent(red_torus , red_cilinder , 0)
+            final = lerp_3d(current_position , [position_red_peg[0] , position_red_peg[1] , position_red_peg[2]-0.15 ], mov_alpha )
+            sim.setObjectPosition(red_torus , final , -1)
+            #sim.setObjectParent(red_ring , red_peg , 0)
             fsm.on_event("arrived")
             # Prepara il reset per lo stato "Move"
             state_start_time = t
