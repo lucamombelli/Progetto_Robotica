@@ -65,6 +65,9 @@ sim = client.require('sim')
 simIK = client.require('simIK')
 panda = PandaRobot(client, "Franka")
 
+#Base Handle
+base = sim.getObject(':/base_peg')
+
 #Ring and Torus handles
 #Red Group
 red_ring = sim.getObject(':/Red_ring')
@@ -86,8 +89,9 @@ target = sim.getObject(':/Franka/Target')
 finger1 = sim.getObject(':/panda_finger_joint1')
 finger2 = sim.getObject(':/panda_finger_joint2')
 hand = sim.getObject(':/Franka/panda_hand_visual')
-#red_cilinder = sim.getObject(':/Cylinder')
-
+red_cilinder = sim.getObject(':/Cylinder')
+blue_cilinder = sim.getObject(':/Cylinder2')
+yellow_cilinder = sim.getObject(':/Cylinder6')
 #Get the Position for every object of interest
 target_position = sim.getObjectPosition(target, sim.handle_world)
 position_red_ring = sim.getObjectPosition(red_ring, sim.handle_world)
@@ -98,7 +102,8 @@ position_red_peg = sim.getObjectPosition(red_peg, sim.handle_world)
 position_yellow_peg = sim.getObjectPosition(yellow_peg, sim.handle_world)
 position_blue_peg = sim.getObjectPosition(blue_peg, sim.handle_world)
 
-
+base_pos = sim.getObjectPosition(base , sim.handle_world)
+base_pos[2] += 0.3
 
 #Adjust the height of the peg
 position_red_peg[2] += 0.1
@@ -127,86 +132,280 @@ state_start_time = panda.simulationTime()
 new_red = list(position_red_ring)
 new_red[2] += 0.2  
 
-pick_target = list(position_red_ring)
-pick_target[2] += 0 # Scende fino al livello dell'anello
-pick_target[1] += 0.04  # Si sposta sul raggio dell'anello
+new_blue = list(position_blue_ring)
+new_blue[2] += 0.2 
 
-place_target = list(position_red_peg)
-place_target[2] += 0.005 # Scende fino al livello dell'anello
-place_target[1] -= 0.02  # Si sposta sul raggio dell'anello
-place_target[0] -= 0.07
+new_yellow = list(position_yellow_ring)
+new_yellow[2] += 0.1
+new_yellow[1] += 0.01
 
-print(f"\nCoordinate target Approach: {new_red}")
-print(f"Coordinate target Pick: {pick_target}")
-print(f"Coordinate target Place: {place_target}")
+pick_target_red = list(position_red_ring)
+pick_target_red[2] += 0 # Scende fino al livello dell'anello
+pick_target_red[1] += 0.04  # Si sposta sul raggio dell'anello
+
+place_target_red = list(position_red_peg)
+place_target_red[2] += 0.005 # Scende fino al livello dell'anello
+place_target_red[1] -= 0.02  # Si sposta sul raggio dell'anello
+place_target_red[0] -= 0.07
+
+#Blue
+pick_target_blue = list(position_blue_ring)
+pick_target_blue[2] += 0 # Scende fino al livello dell'anello
+pick_target_blue[1] += 0.04  # Si sposta sul raggio dell'anello
+
+place_target_blue = list(position_blue_peg)
+place_target_blue[2] += 0.05 # Scende fino al livello dell'anello
+place_target_blue[1]  += 0.1  # Si sposta sul raggio dell'anello
+place_target_blue[0] += 0.1
+
+#Yellow 
+pick_target_yellow = list(position_yellow_ring)
+pick_target_yellow[2] += 0 # Scende fino al livello dell'anello
+pick_target_yellow[1] += 0.04  # Si sposta sul raggio dell'anello
+
+place_target_yellow = list(position_yellow_peg)
+place_target_yellow[2] += 0.08 # Scende fino al livello dell'anello
+place_target_yellow[1] += 0.07  # Si sposta sul raggio dell'anello
+place_target_yellow[0] += 0.1
+
+
+#print(f"\nCoordinate target Approach: {new_red}")
+#print(f"Coordinate target Pick: {pick_target}")
+#print(f"Coordinate target Place: {place_target}")
 
 
 # Variabile d'appoggio per salvare la posizione in aria prima di scendere
 pos_prima_di_scendere = [0, 0, 0]
-
-while (t := panda.simulationTime()) < 50:
+counter = 0 ; 
+while (t := panda.simulationTime()) < 60:
     stato = fsm.current_state()
     
-    if stato == "Approach":
-        sim.setJointTargetPosition(finger1, 0.04)
-        sim.setJointTargetPosition(finger2, 0.04)
-        
-        # Calcola il tempo passato SOLO in questo stato (es. 3 secondi totali)
-        mov_alpha = min(1.0, (t - state_start_time) / 3.0) 
-        current_position = lerp_3d(start_pos, new_red, mov_alpha)
-        
-        current_pose = current_position + start_orient
-        sim.setObjectPose(target, current_pose, sim.handle_world)
-        
-        if mov_alpha >= 1.0:
-            fsm.on_event("reached")
-            # --- RESET DEI TEMPI PER LO STATO SUCCESSIVO ---
-            state_start_time = t 
-            # pos_prima_di_scendere = current_position # Salviamo il punto fisso da cui scendere
-            
-    elif stato == "Pick":
-        # Discesa più rapida: 2 secondi
-        mov_alpha = min(1.0, (t - state_start_time) / 2.0) 
-        
-        # Usiamo il punto fisso in aria come partenza, e il ring come arrivo
-        current_position = lerp_3d(current_position, pick_target, mov_alpha)
-        
-        current_pose = current_position + start_orient
-        sim.setObjectPose(target, current_pose, sim.handle_world)
-
-        # CHIUDE LA PINZA SOLO QUANDO SEI ARRIVATO IN FONDO
-        if mov_alpha >= 1.0:
-            #sim.setJointTargetForce(finger1, 1000.0)
-            #sim.setJointTargetForce(finger2, 1000.0)           
-            sim.setObjectParent(red_torus , hand  , 0)
-            sim.setObjectParent(red_ring , red_torus  , 0)
-            sim.setJointTargetPosition(finger1, 0.00)
-            sim.setJointTargetPosition(finger2, 0.02)
-            
-            fsm.on_event("picked")
-            # Prepara il reset per lo stato "Move"
-            state_start_time = t
-    
-    elif stato == "Move":
-        mov_alpha = min(1.0, (t - state_start_time) / 10.0) 
-
-        # Usiamo il punto fisso in aria come partenza, e il ring come arrivo
-        current_position = lerp_3d(current_position, place_target, 0.009)
-        
-        current_pose = current_position + start_orient
-        sim.setObjectPose(target, current_pose, sim.handle_world)
-
-        if mov_alpha >= 1.0:
+    if counter == 0 : 
+        if stato == "Approach":
             sim.setJointTargetPosition(finger1, 0.04)
             sim.setJointTargetPosition(finger2, 0.04)
-            sim.setObjectParent(red_torus , red_cilinder , 0)
-            final = lerp_3d(current_position , [position_red_peg[0] , position_red_peg[1] , position_red_peg[2]-0.15 ], mov_alpha )
-            sim.setObjectPosition(red_torus , final , -1)
-            #sim.setObjectParent(red_ring , red_peg , 0)
-            fsm.on_event("arrived")
-            # Prepara il reset per lo stato "Move"
-            state_start_time = t
+            
+            # Calcola il tempo passato SOLO in questo stato (es. 3 secondi totali)
+            mov_alpha = min(1.0, (t - state_start_time) / 3.0) 
+            current_position = lerp_3d(start_pos, new_red, mov_alpha)
+            
+            current_pose = current_position + start_orient
+            sim.setObjectPose(target, current_pose, sim.handle_world)
+            
+            if mov_alpha >= 1.0:
+                fsm.on_event("reached")
+                # --- RESET DEI TEMPI PER LO STATO SUCCESSIVO ---
+                state_start_time = t 
+                # pos_prima_di_scendere = current_position # Salviamo il punto fisso da cui scendere
+                
+        elif stato == "Pick":
+            # Discesa più rapida: 2 secondi
+            mov_alpha = min(1.0, (t - state_start_time) / 2.0) 
+            
+            # Usiamo il punto fisso in aria come partenza, e il ring come arrivo
+            current_position = lerp_3d(current_position, pick_target_red, mov_alpha)
+            
+            current_pose = current_position + start_orient
+            sim.setObjectPose(target, current_pose, sim.handle_world)
+
+            # CHIUDE LA PINZA SOLO QUANDO SEI ARRIVATO IN FONDO
+            if mov_alpha >= 1.0:
+                #sim.setJointTargetForce(finger1, 1000.0)
+                #sim.setJointTargetForce(finger2, 1000.0)           
+                sim.setObjectParent(red_torus , hand  , 0)
+                sim.setObjectParent(red_ring , red_torus  , 0)
+                sim.setJointTargetPosition(finger1, 0.00)
+                sim.setJointTargetPosition(finger2, 0.02)
+                
+                fsm.on_event("picked")
+                # Prepara il reset per lo stato "Move"
+                state_start_time = t
+        
+        elif stato == "Move":
+            mov_alpha = min(1.0, (t - state_start_time) / 10.0) 
+
+            # Usiamo il punto fisso in aria come partenza, e il ring come arrivo
+            current_position = lerp_3d(current_position, place_target_red, 0.009)
+            
+            current_pose = current_position + start_orient
+            sim.setObjectPose(target, current_pose, sim.handle_world)
+
+            if mov_alpha >= 1.0:
+                sim.setJointTargetPosition(finger1, 0.04)
+                sim.setJointTargetPosition(finger2, 0.04)
+                sim.setObjectParent(red_torus , red_cilinder , 0)
+                final = lerp_3d(current_position , [position_red_peg[0] , position_red_peg[1] , position_red_peg[2]-0.15 ], mov_alpha )
+                sim.setObjectPosition(red_torus , final , -1)
+                #sim.setObjectParent(red_ring , red_peg , 0)
+                fsm.on_event("arrived")
+                fsm.on_event("placed")
+                # Prepara il reset per lo stato "Move"
+                state_start_time = t
+
+        elif stato == "Return" :
+         mov_alpha = min(1.0, (t - state_start_time) / 2.0) 
+         current_position = lerp_3d(position_red_peg, base_pos, mov_alpha)
+         current_pose = current_position + start_orient
+         sim.setObjectPose(target, current_pose, sim.handle_world)
+         #print("Current state" ,{stato})
+         if mov_alpha >= 1.0 : 
+            fsm.on_event("returned")
+            counter += 1 
+    
+    if counter == 1 :
+        if stato == "Idle" : 
+            fsm.on_event("approach")
+    
+        elif stato == "Approach" : 
+        
+            sim.setJointTargetPosition(finger1, 0.04)
+            sim.setJointTargetPosition(finger2, 0.04)
+            
+            # Calcola il tempo passato SOLO in questo stato (es. 3 secondi totali)
+            mov_alpha = min(1.0, (t - state_start_time) / 3.0) 
+            current_position = lerp_3d(base_pos, new_blue, mov_alpha)
+            
+            current_pose = current_position + start_orient
+            sim.setObjectPose(target, current_pose, sim.handle_world)
+            if mov_alpha >= 1.0:
+                fsm.on_event("reached")
+                # --- RESET DEI TEMPI PER LO STATO SUCCESSIVO ---
+                state_start_time = t 
+                # pos_prima_di_scendere = current_position # Salviamo il punto fisso da cui scendere
+        
+        elif stato == "Pick":
+            # Discesa più rapida: 2 secondi
+            mov_alpha = min(1.0, (t - state_start_time) / 2.0) 
+            
+            # Usiamo il punto fisso in aria come partenza, e il ring come arrivo
+            current_position = lerp_3d(current_position, pick_target_blue, mov_alpha)
+            
+            current_pose = current_position + start_orient
+            sim.setObjectPose(target, current_pose, sim.handle_world)
+
+            # CHIUDE LA PINZA SOLO QUANDO SEI ARRIVATO IN FONDO
+            if mov_alpha >= 1.0:
+                #sim.setJointTargetForce(finger1, 1000.0)
+                #sim.setJointTargetForce(finger2, 1000.0)           
+                sim.setObjectParent(blue_torus , hand  , 0)
+                sim.setObjectParent(blue_ring , blue_torus  , 0)
+                sim.setJointTargetPosition(finger1, 0.00)
+                sim.setJointTargetPosition(finger2, 0.02)
+                
+                fsm.on_event("picked")
+                # Prepara il reset per lo stato "Move"
+                state_start_time = t
+        
+        elif stato == "Move":
+            mov_alpha = min(1.0, (t - state_start_time) / 10.0) 
+
+            # Usiamo il punto fisso in aria come partenza, e il ring come arrivo
+            current_position = lerp_3d(current_position, place_target_blue, 0.006)
+            
+            current_pose = current_position + start_orient
+            sim.setObjectPose(target, current_pose, sim.handle_world)
+
+            if mov_alpha >= 1.0:
+                sim.setJointTargetPosition(finger1, 0.04)
+                sim.setJointTargetPosition(finger2, 0.04)
+                sim.setObjectParent(blue_torus , blue_cilinder , 0)
+                final = lerp_3d(current_position , [position_blue_peg[0] , position_blue_peg[1] , position_blue_peg[2]-0.15 ], mov_alpha )
+                sim.setObjectPosition(blue_torus , final , -1)
+                sim.setObjectParent(blue_ring , blue_peg , 0)
+                fsm.on_event("arrived")
+                fsm.on_event("placed")
+                # Prepara il reset per lo stato "Move"
+                state_start_time = t
+
+        elif stato == "Return" :
+         mov_alpha = min(1.0, (t - state_start_time) / 10.0) 
+         current_position = lerp_3d(position_blue_peg, base_pos, mov_alpha)
+         current_pose = current_position + start_orient
+         sim.setObjectPose(target, current_pose, sim.handle_world)
+         #print("Current state" ,{stato})
+         if mov_alpha >= 1.0 : 
+            fsm.on_event("returned")
+            counter += 1 
+            print("Counter: ", counter)
+            state_start_time = t # Reset del timer per il prossimo ciclo
+    
+    if counter == 2:
+        if stato == "Idle" : 
+            fsm.on_event("approach")
+    
+        elif stato == "Approach" : 
+        
+            sim.setJointTargetPosition(finger1, 0.04)
+            sim.setJointTargetPosition(finger2, 0.04)
+            
+            # Calcola il tempo passato SOLO in questo stato (es. 3 secondi totali)
+            mov_alpha = min(1.0, (t - state_start_time) / 3.0) 
+            current_position = lerp_3d(current_position, new_yellow, mov_alpha)
+            
+            current_pose = current_position + start_orient
+            sim.setObjectPose(target, current_pose, sim.handle_world)
+            if mov_alpha >= 1.0:
+                fsm.on_event("reached")
+                # --- RESET DEI TEMPI PER LO STATO SUCCESSIVO ---
+                state_start_time = t 
+                # pos_prima_di_scendere = current_position # Salviamo il punto fisso da cui scendere
+        
+        elif stato == "Pick":
+            # Discesa più rapida: 2 secondi
+            mov_alpha = min(1.0, (t - state_start_time) / 1.0) 
+            
+            # Usiamo il punto fisso in aria come partenza, e il ring come arrivo
+            current_position = lerp_3d(current_position, pick_target_yellow, mov_alpha)
+            
+            current_pose = current_position + start_orient
+            sim.setObjectPose(target, current_pose, sim.handle_world)
+
+            # CHIUDE LA PINZA SOLO QUANDO SEI ARRIVATO IN FONDO
+            if mov_alpha >= 1.0:
+                #sim.setJointTargetForce(finger1, 1000.0)
+                #sim.setJointTargetForce(finger2, 1000.0)           
+                sim.setObjectParent(yellow_torus , hand  , 0)
+                sim.setObjectParent(yellow_ring , yellow_torus  , 0)
+                sim.setJointTargetPosition(finger1, 0.00)
+                sim.setJointTargetPosition(finger2, 0.02)
+                
+                fsm.on_event("picked")
+                # Prepara il reset per lo stato "Move"
+                state_start_time = t
+        
+        elif stato == "Move":
+            mov_alpha = min(1.0, (t - state_start_time) / 10.0) 
+
+            # Usiamo il punto fisso in aria come partenza, e il ring come arrivo
+            current_position = lerp_3d(current_position, place_target_yellow, 0.009)
+            
+            current_pose = current_position + start_orient
+            sim.setObjectPose(target, current_pose, sim.handle_world)
+
+            if mov_alpha >= 1.0:
+                sim.setJointTargetPosition(finger1, 0.04)
+                sim.setJointTargetPosition(finger2, 0.04)
+                sim.setObjectParent(yellow_torus , yellow_cilinder , 0)
+                final = lerp_3d(current_position , [position_yellow_peg[0] , position_yellow_peg[1] , position_yellow_peg[2]-0.15 ], mov_alpha )
+                sim.setObjectPosition(yellow_torus , final , -1)
+                sim.setObjectParent(yellow_ring , yellow_peg , 0)
+                fsm.on_event("arrived")
+                fsm.on_event("placed")
+                # Prepara il reset per lo stato "Move"
+                state_start_time = t
+
+        elif stato == "Return" :
+         mov_alpha = min(1.0, (t - state_start_time) / 5.0) 
+         current_position = lerp_3d(position_yellow_peg, base_pos, mov_alpha)
+         current_pose = current_position + start_orient
+         sim.setObjectPose(target, current_pose, sim.handle_world)
+         #print("Current state" ,{stato})
+         if mov_alpha >= 1.0 : 
+            fsm.on_event("returned")
+            counter += 1 
 
     panda.stepSimulation()
 
 panda.stopSimulation()
+    
+   
