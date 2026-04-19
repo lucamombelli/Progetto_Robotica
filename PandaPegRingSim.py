@@ -90,7 +90,7 @@ red_cilinder = sim.getObject(':/Cylinder')
 blue_cilinder = sim.getObject(':/Cylinder2')
 yellow_cilinder = sim.getObject(':/Cylinder6')
 
-# Get the Position for every object of interest
+# Recupera la posizione di tutti gli oggetti
 target_position = sim.getObjectPosition(target, sim.handle_world)
 position_red_ring = sim.getObjectPosition(red_ring, sim.handle_world)
 position_yellow_ring = sim.getObjectPosition(yellow_ring, sim.handle_world)
@@ -103,7 +103,7 @@ position_blue_peg = sim.getObjectPosition(blue_peg, sim.handle_world)
 base_pos = sim.getObjectPosition(base, sim.handle_world)
 base_pos[2] += 0.3
 
-# Adjust the height of the peg
+# Aggiustamento manuale posizione peg
 position_red_peg[2] += 0.1
 position_blue_peg[2] += 0.1
 position_yellow_peg[2] += 0.1
@@ -160,14 +160,12 @@ place_target_yellow[0] += 0.03
 
 # Inizializzazione tempi e variabili dinamiche
 state_start_time = panda.simulationTime()
-phase_start_pos = list(start_pos)  # Memorizza il punto di partenza della fase corrente
+phase_start_pos = list(start_pos)  # Memorizza il punto di partenza
 current_position = list(start_pos)
 counter = 0 
 
-# ==========================================
-# DIZIONARIO TEMPI STANDARD (in secondi)
-# Modifica questi valori per velocizzare o rallentare le fasi
-# ==========================================
+# Dizionario dei Tempi
+
 phase_durations = {
     "Approach": 7.0,
     "Pick": 3.0,
@@ -178,15 +176,13 @@ phase_durations = {
 while (t := panda.simulationTime()) < 60:
     stato = fsm.current_state()
     
-    # Calcolo standardizzato di mov_alpha basato sullo stato corrente
+    # Calcolo di mov_alpha basato sullo stato corrente
     if stato in phase_durations:
         mov_alpha = min(1.0, (t - state_start_time) / phase_durations[stato])
     else:
         mov_alpha = 0.0
     
-    # ==========================================
     # CICLO 0: ROSSO
-    # ==========================================
     if counter == 0: 
         if stato == "Approach":
             sim.setJointTargetPosition(finger1, 0.04)
@@ -247,9 +243,7 @@ while (t := panda.simulationTime()) < 60:
                 counter += 1 
                 state_start_time = t 
     
-    # ==========================================
     # CICLO 1: BLU
-    # ==========================================
     elif counter == 1:
         if stato == "Idle": 
             fsm.on_event("approach")
@@ -317,9 +311,7 @@ while (t := panda.simulationTime()) < 60:
                 print("Counter: ", counter)
                 state_start_time = t 
 
-    # ==========================================
     # CICLO 2: GIALLO
-    # ==========================================
     elif counter == 2:
         if stato == "Idle": 
             fsm.on_event("approach")
