@@ -113,7 +113,7 @@ fsm.on_event("approach")
 
 panda.startSimulation()
 
-# Salva le posizioni e gli orientamenti di partenza globali
+# Salva le posizioni e gli orientamenti di partenza global
 start_pose = sim.getObjectPose(target, sim.handle_world)
 start_pos = start_pose[0:3]       
 start_orient = start_pose[3:7]
